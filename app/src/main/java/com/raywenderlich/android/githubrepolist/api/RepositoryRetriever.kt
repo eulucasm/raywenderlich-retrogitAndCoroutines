@@ -19,8 +19,7 @@ class RepositoryRetriever {
             .build()
         service = retrofit.create(GithubService::class.java)
     }
-    fun getRepositories(callback: Callback<RepoResult>){
-       val call = service.searchRepositories()
-       call.enqueue(callback)
+    suspend fun getRepositories(): RepoResult {
+        return service.searchRepositories()
     }
 }
