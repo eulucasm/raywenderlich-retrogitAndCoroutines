@@ -34,54 +34,72 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.raywenderlich.android.githubrepolist.R
+import com.raywenderlich.android.githubrepolist.api.RepositoryRetriever
+import com.raywenderlich.android.githubrepolist.data.RepoResult
 import com.raywenderlich.android.githubrepolist.data.Request
 import com.raywenderlich.android.githubrepolist.ui.adapters.RepoListAdapter
 import kotlinx.android.synthetic.main.activity_main.*
 import org.jetbrains.anko.doAsync
 import org.jetbrains.anko.uiThread
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class MainActivity : AppCompatActivity() {
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    // Switch to AppTheme for displaying the activity
-    setTheme(R.style.AppTheme)
+    private val repoRetriever = RepositoryRetriever()
 
-    super.onCreate(savedInstanceState)
-    setContentView(R.layout.activity_main)
-
-    repoList.layoutManager = LinearLayoutManager(this)
-
-    val url = "https://api.github.com/search/repositories?q=super+mario+language:kotlin&sort=stars&order=desc"
-
-    if (isNetworkConnected()) {
-      doAsync {
-        val result = Request().run()
-        uiThread {
-          repoList.adapter = RepoListAdapter(result)
+    private val callback = object : Callback<RepoResult> {
+        override fun onFailure(call: Call<RepoResult>, t: Throwable) {
+            Log.e("MainActivity", "Problem calling Github API {${t?.message}")
         }
-      }
-    } else {
-      AlertDialog.Builder(this).setTitle("No Internet Connection")
-              .setMessage("Please check your internet connection and try again")
-              .setPositiveButton(android.R.string.ok) { _, _ -> }
-              .setIcon(android.R.drawable.ic_dialog_alert).show()
-    }
-  }
 
-  private fun isNetworkConnected(): Boolean {
-    //1
-    val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    //2
-    val activeNetwork = connectivityManager.activeNetwork
-    //3
-    val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-    //4
-    return networkCapabilities != null &&
-            networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-  }
+        override fun onResponse(call: Call<RepoResult>, response: Response<RepoResult>) {
+            response?.isSuccessful.let {
+                val resultList = RepoResult(response?.body()?.items ?: emptyList())
+                repoList.adapter = RepoListAdapter(resultList)
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // Switch to AppTheme for displaying the activity
+        setTheme(R.style.AppTheme)
+
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        repoList.layoutManager = LinearLayoutManager(this)
+
+        val url =
+            "https://api.github.com/search/repositories?q=super+mario+language:kotlin&sort=stars&order=desc"
+
+        if (isNetworkConnected()) {
+            repoRetriever.getRepositories(callback)
+        } else {
+            AlertDialog.Builder(this).setTitle("No Internet Connection")
+                .setMessage("Please check your internet connection and try again")
+                .setPositiveButton(android.R.string.ok) { _, _ -> }
+                .setIcon(android.R.drawable.ic_dialog_alert).show()
+        }
+    }
+
+    private fun isNetworkConnected(): Boolean {
+        //1
+        val connectivityManager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        //2
+        val activeNetwork = connectivityManager.activeNetwork
+        //3
+        val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+        //4
+        return networkCapabilities != null &&
+                networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
 
 }
